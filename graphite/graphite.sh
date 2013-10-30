@@ -6,6 +6,9 @@ sudo apt-get upgrade
 
 echo "installing all the prerequisites"
 sudo apt-get install --assume-yes apache2 apache2-mpm-worker apache2-utils apache2.2-bin apache2.2-common libapr1 libaprutil1 libaprutil1-dbd-sqlite3 build-essential python3.2 python-dev libpython3.2 python3-minimal libapache2-mod-wsgi libaprutil1-ldap memcached python-cairo-dev python-django python-ldap python-memcache python-pysqlite2 sqlite3 erlang-os-mon erlang-snmp rabbitmq-server bzr expect libapache2-mod-python python-setuptools
+sudo apt-get install --assume-yes python-software-properties
+sudo apt-get install git
+sudo apt-get install python g++ make checkinstall
 
 echo "installing python installer stuff"
 sudo easy_install django-tagging zope.interface twisted txamqp
@@ -34,32 +37,43 @@ sudo python setup.py install
 
 echo "configuring graphite"
 cd /opt/graphite/conf
-sudo "echo '[stats]
+sudo cp carbon.conf.example carbon.conf
+sudo echo '[stats]
 priority = 110
 pattern = .*
-retentions = 10:2160,60:10080,600:262974' > storage-schemas.conf"
+retentions = 10:2160,60:10080,600:262974' | sudo tee storage-schemas.conf
 
 echo "configuring the graphite db"
 cd /opt/graphite/webapp/graphite/
+sudo echo "DATABASES = {
+      'default': {
+        'NAME': '/opt/graphite/storage/graphite.db',
+        'ENGINE': 'django.db.backends.sqlite3',
+        'USER': '',
+        'PASSWORD': '',
+        'HOST': '',
+        'PORT': ''
+     }
+}" | sudo tee local_settings.py
 sudo python manage.py syncdb
-sudo cp local_settings.py.example local_settings.py
 
 echo "configuring apache"
 sudo cp ~/graphite*/examples/example-graphite-vhost.conf /etc/apache2/sites-available/default
 sudo cp /opt/graphite/conf/graphite.wsgi.example /opt/graphite/conf/graphite.wsgi
 sudo chown -R www-data:www-data /opt/graphite/storage
 sudo mkdir -p /etc/httpd/wsgi
-
-# do the file here - sites default...
-
+cd /etc/apache2/sites-available/
+sudo sed -i '20s/.*/WSGISocketPrefix \/etc\/httpd\/wsgi/' default
 sudo service apache2 restart
 
 echo "installing statsd"
-sudo apt-get install python-software-properties
-sudo apt-add-repository ppa:chris-lea/node.js
-sudo apt-get update
-sudo apt-get install nodejs
-sudo apt-get install git
+mkdir ~/src && cd $_
+wget -N http://nodejs.org/dist/node-latest.tar.gz
+tar xzvf node-latest.tar.gz && cd node-v*
+./configure
+sudo checkinstall
+sudo dpkg -i node_*
+
 cd /opt
 sudo git clone git://github.com/etsy/statsd.git
 cd /opt/statsd
